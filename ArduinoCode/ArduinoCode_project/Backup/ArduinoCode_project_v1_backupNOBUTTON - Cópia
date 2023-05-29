@@ -1,0 +1,77 @@
+#include <DHT.h>
+#include <ArduinoJson.h>
+#include <Servo.h>
+
+#define DHT_PIN 5    // Pin connected to the DHT sensor
+#define DHT_TYPE DHT11   // DHT sensor type
+
+Servo servo; // servo object representing the MG 996R servo
+DHT dht(DHT_PIN, DHT_TYPE);
+
+void setup() {
+  Serial.begin(115200);
+  while (!Serial) {
+    ; // wait for serial port to connect. Needed for native USB
+  }
+  pinMode(LED_BUILTIN, OUTPUT);
+
+  // Servo Motor code
+  servo.attach(4); // servo is wired to Arduino on digital pin 4
+  servo.write(180); // move MG996R's shaft to angle 0° (Fechado)
+
+  // DHT Sensor code
+  dht.begin();
+}
+
+
+void loop() {
+  // Read sensor data
+  float humidity = dht.readHumidity();
+  float temperature = dht.readTemperature();
+  
+  // Handle serial input
+  if (Serial.available() > 0) {
+    char c = Serial.read();
+    switch (c) {
+      case '1': 
+        // OPEN servo motor
+        if (servo.read() == 0) {
+          servo.write(180); // move MG996R's shaft to angle 180° (It is a open Position)
+        }
+        Serial.write("A"); //Send's back a "A" letter
+        break;
+      case '2':
+        // Close servo motor
+        if (servo.read() == 180) {
+          servo.write(0); // move MG996R's shaft to angle 0°  (It is a close Position)
+        }
+        Serial.write("B"); //Send's back a "B" letter 
+        break;
+         case '3':
+        // Send DHT11 data
+        if (isnan(humidity) || isnan(temperature)) {
+          Serial.println(F("Failed to read from DHT sensor!"));
+        } else {
+          sendDHT11Data(temperature, humidity);
+        }
+        Serial.write("B"); // Send back 'B' as acknowledgement
+        break;
+      default:
+        Serial.write("E"); //Send's back a "E" = error
+        break;
+    }
+  }
+  
+   
+}
+
+void sendDHT11Data(float temperature, float humidity) {
+  StaticJsonDocument<128> jsonDoc;
+  jsonDoc["temperature"] = temperature;
+  jsonDoc["humidity"] = humidity;
+
+  String jsonString;
+  serializeJson(jsonDoc, jsonString);
+  
+  Serial.println(jsonString);
+}
